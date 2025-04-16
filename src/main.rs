@@ -43,12 +43,26 @@ fn prompt(message: &str) -> bool {
 
 
 
-fn expand_tilde(path: &str) -> String {
+fn expand_path(path: &str) -> String {
     if path.starts_with("~") {
         let home_dir = home::home_dir().expect("Could not find home directory");
         let expanded = home_dir.join(&path[1..]);
         return expanded.to_str().unwrap_or_default().to_string();
+    } else if path.starts_with("/") {
+        return path.to_string();
+    } else {
+        let current_dir = env::current_dir().expect("Failed to get current_dir");
+
+        let mut start_point = 0;
+        if path.starts_with("./") {
+            start_point = 2;
+        }
+
+        let expanded = current_dir.join(&path[start_point..]);
+        return expanded.to_str().unwrap_or_default().to_string();
     }
+
+
     path.to_string()
 }
 
@@ -83,12 +97,12 @@ fn main() {
 
     // arg2:
     // the path to server
-    let expanded_server_path = expand_tilde(args[2].as_str());
+    let expanded_server_path = expand_path(args[2].as_str());
     let server_path = Path::new(expanded_server_path.as_str());
 
     // arg1: 
     // the path to .mrpack
-    let mrpack_path: String = expand_tilde(args[1].as_str());
+    let mrpack_path: String = expand_path(args[1].as_str());
 
     println!("Opening mrpack");
     let mrpack_file = fs::File::open(mrpack_path.as_str()).expect("Failed to open mrpack, check so filepath is right!");
