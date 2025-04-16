@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{write, File};
 use std::{env, fs, io::Read, process::exit};
 use std::io::{self, copy, Write};
 use home;
@@ -68,22 +68,10 @@ fn expand_path(path: &str) -> String {
 
 
 
-fn get_sha512_from_response(response: &mut Response) -> Result<String, Box<dyn std::error::Error>> {
+fn get_sha512(bytes: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
     let mut hasher = Sha512::new();
-    let mut buffer = [0u8; 4096]; // A buffer to read chunks
-
-    while let Ok(bytes_read) = response.read(&mut buffer) {
-        if bytes_read == 0 {
-            break; // No more data to read
-        }
-        hasher.update(&buffer[..bytes_read]);
-    }
-
-    // Finalize the hash computation
-    let hash = hasher.finalize();
-    let hex_hash = hex::encode(hash);
-
-    Ok(hex_hash)
+    hasher.update(bytes);
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 
@@ -137,7 +125,8 @@ fn main() {
     println!("Starting downloads: ");
     for mod_data in mods.iter() {
         let mut response = get(mod_data.download.as_str()).expect("Failed to download file!");
-        let response_hash = get_sha512_from_response(&mut response).expect("Failed to get hash from downloaded response!");
+        let bytes = response.bytes().expect("Failed to get bytes from response!");
+        let response_hash = get_sha512(&bytes).expect("Failed to get hash from downloaded response!");
 
         if response_hash != mod_data.hash {
             println!("    Hash of downloaded file didn't match modpack hash: {}   skipping file", mod_data.path);
@@ -145,8 +134,8 @@ fn main() {
         }
 
         let full_path = server_path.join(mod_data.path.as_str());
-        let mut file = File::create(full_path).expect(format!("Failed to create file `{}`", mod_data.path).as_str());
-        copy(&mut response, &mut file).expect(format!("Failed to write to file `{}`", mod_data.path).as_str());
+        std::fs::create_dir_all(full_path.parent().unwrap()).unwrap();
+        std::fs::write(&full_path, &bytes).expect("Failed to write file");
 
         println!("    Successfully downloaded mod `{}`", mod_data.path);
     }
